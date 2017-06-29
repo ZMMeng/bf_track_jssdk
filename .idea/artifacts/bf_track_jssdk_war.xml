@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="war" name="bf_track_jssdk:war">
+    <output-path>$PROJECT_DIR$/target</output-path>
+    <root id="archive" name="bf_track_jssdk.war">
+      <element id="artifact" artifact-name="bf_track_jssdk:war exploded" />
+    </root>
+  </artifact>
+</component>
