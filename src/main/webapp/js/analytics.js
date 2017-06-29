@@ -53,7 +53,7 @@
         },
 
         setExt: function (key, value) {
-            set(key, value, new Date().getTime() + 10 * 365 * 24 * 60 * 60 * 1000, "/");
+            this.set(key, value, new Date().getTime() + 10 * 365 * 24 * 60 * 60 * 1000, "/");
         }
 
     };
@@ -92,7 +92,10 @@
             clientTime: "c_time",
             language: "l",
             userAgent: "b_iev",
-            resolution: "b_rst"
+            resolution: "b_rst",
+            currentUrl: "p_url",
+            referenceUrl: "p_ref",
+            title: "tt"
 
         },
 
@@ -103,6 +106,7 @@
             eventDurationEvent: "ede",
             sid: "bftrack_sid",
             uuid: "bftrack_uuid",
+            mid: "bftrack_mid",
             preVisitTime: "bftrack_previsit"
         },
 
@@ -178,6 +182,14 @@
         },
 
         /**
+         * 获取Member ID
+         * @returns {*}
+         */
+        getMemberId: function () {
+            return CookieUtil.get(this.keys.mid);
+        },
+
+        /**
          * 加载js触发的事件
          */
         startSession: function () {
@@ -210,13 +222,32 @@
             this.setCommonColumns(launch);
             //最终发送编码后的数据
             this.sendDataToServer(this.parseParam(launch));
+            //更新最近操作时间
+            //this.updatePreVisitTime(new Date().getTime());
         },
 
         /**
          * 触发页面查看事件
          */
         onPageView: function () {
+            if(this.preCallApi()){
+                var time = new Date().getTime();
+                var pageViewEvent = {};
+                pageViewEvent[this.columns.eventName] = this.keys.pageView;
+                //设置当前url
+                pageViewEvent[this.columns.currentUrl] = window.location.href;
+                //设置前一个页面的url
+                pageViewEvent[this.columns.referenceUrl] = document.referrer;
+                //设置title
+                pageViewEvent[this.columns.title] = document.title;
+                //设置公用columns
+                this.setCommonColumns(pageViewEvent);
+                //最终发送编码后的数据
+                this.sendDataToServer(this.parseParam(pageViewEvent));
+                //更新最近操作时间
+                this.updatePreVisitTime(time);
 
+            }
         },
 
         /**
@@ -233,8 +264,12 @@
 
         },
 
-        preCallApp: function () {
-
+        /**
+         * 执行对外方法前必须执行的方法
+         * @returns {boolean}
+         */
+        preCallApi: function () {
+            return true;
         },
 
         /**
@@ -351,4 +386,28 @@
         }
 
     };
+
+    /**
+     * 对外的方法
+     * @type {{startSession: Window.__AE__.startSession}}
+     * @private
+     */
+    window.__AE__ = {
+        /**
+         * 加载js触发的事件
+         */
+        startSession: function () {
+            tracker.startSession();
+        }
+    }
+
+    /**
+     * 加载
+     */
+    var autoLoad = function () {
+        __AE__.startSession();
+    };
+
+    //手动进行加载
+    autoLoad();
 })();
