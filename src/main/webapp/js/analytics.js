@@ -18,6 +18,7 @@
                 }
                 cookieValue = decodeURIComponent(document.cookie.substring(cookieStart + cookieName.length, cookieEnd))
             }
+            return cookieValue;
 
 
         },
@@ -49,13 +50,11 @@
             }
 
             document.cookie = cookieText;
-
         },
 
         setExt: function (key, value) {
-            this.set(key, value, new Date().getTime() + 10 * 365 * 24 * 60 * 60 * 1000, "/");
+            this.set(key, value, new Date().getTime() + 315360000000, "/");
         }
-
     };
 
     /**
@@ -76,7 +75,7 @@
         /**
          * cookie过期时间，设置为十年
          */
-        cookieExpires: 10 * 365 * 24 * 60 * 60 * 1000,
+        cookieExpires: 315360000000,
 
         /**
          * 发送到服务器的列名
@@ -95,7 +94,16 @@
             resolution: "b_rst",
             currentUrl: "p_url",
             referenceUrl: "p_ref",
-            title: "tt"
+            title: "tt",
+            orderId: "oid",
+            orderName: "on",
+            currencyAmount: "cua",
+            currencyType: "cut",
+            paymentType: "pt",
+            category: "ca",
+            action: "ac",
+            kv: "kv_",
+            duration: "du"
 
         },
 
@@ -111,20 +119,6 @@
         },
 
         /**
-         * 返回全部event的名称数组
-         */
-        getEventKeys: function () {
-
-            return [
-                this.keys.pageView,
-                this.keys.chargeRequestEvent,
-                this.keys.launch,
-                this.keys.eventDurationEvent
-            ];
-
-        },
-
-        /**
          * 获取会话id
          * @returns {*}
          */
@@ -134,6 +128,7 @@
 
         /**
          * 保存会话id到Cookie
+         * @param sid
          */
         setSid: function (sid) {
             if (sid) {
@@ -156,7 +151,7 @@
             if (params) {
                 //params非空
                 return params.substring(0, params.length - 1);
-            }else{
+            } else {
                 //params为空
                 return params
             }
@@ -187,6 +182,16 @@
          */
         getMemberId: function () {
             return CookieUtil.get(this.keys.mid);
+        },
+
+        /**
+         * 设置会员id
+         * @param mid
+         */
+        setMemberId: function (mid) {
+            if (mid) {
+                CookieUtil.setExt(this.keys.mid, mid);
+            }
         },
 
         /**
@@ -230,7 +235,7 @@
          * 触发页面查看事件
          */
         onPageView: function () {
-            if(this.preCallApi()){
+            if (this.preCallApi()) {
                 var time = new Date().getTime();
                 var pageViewEvent = {};
                 pageViewEvent[this.columns.eventName] = this.keys.pageView;
@@ -246,22 +251,98 @@
                 this.sendDataToServer(this.parseParam(pageViewEvent));
                 //更新最近操作时间
                 this.updatePreVisitTime(time);
-
             }
         },
 
         /**
          * 触发订单产生事件
+         * @param orderId 订单id
+         * @param orderName 产品购买描述名称
+         * @param currencyAmount 产品价格
+         * @param currencyType 货币类型
+         * @param paymentType 支付方式
          */
-        onChargeRequest: function () {
+        onChargeRequest: function (orderId, orderName, currencyAmount, currencyType, paymentType) {
+            if (this.preCallApi()) {
 
+                //判断订单id、货币类型以及支付方式是否为空
+                if (!orderId || !currencyType || !paymentType) {
+                    this.log("订单id、货币类型以及支付方式不能为空！");
+                    return;
+                }
+
+                //判断产品价格是否是数字(负数呢？)
+                if (!typeof (currencyAmount) == "number") {
+                    this.log("产品价格必须是数字！");
+                    return;
+                }
+
+                var time = new Date().getTime();
+                var chargeRequestEvent = {};
+                //设置事件名称
+                chargeRequestEvent[this.columns.eventName] = this.keys.chargeRequestEvent;
+                //设置订单id
+                chargeRequestEvent[this.columns.orderId] = orderId;
+                //设置产品购买描述名称
+                chargeRequestEvent[this.columns.orderName] = orderName;
+                //设置产品价格
+                chargeRequestEvent[this.columns.currencyAmount] = currencyAmount;
+                //设置货币类型
+                chargeRequestEvent[this.columns.currencyType] = currencyType;
+                //设置支付方式
+                chargeRequestEvent[this.columns.paymentType] = paymentType;
+                //设置公用columns
+                this.setCommonColumns(chargeRequestEvent);
+                //最终发送编码后的数据
+                this.sendDataToServer(this.parseParam(chargeRequestEvent));
+                //更新最近操作时间
+                this.updatePreVisitTime(time);
+            }
         },
 
         /**
          * 触发Event事件
+         * @param category 自定义事件名称
+         * @param action 自定义事件动作
+         * @param map 其他参数
+         * @param duration 事件持续时间
          */
-        onEventDuration: function () {
+        onEventDuration: function (category, action, map, duration) {
+            if (this.preCallApi()) {
+                //判断事件名称和事件动作是否为空
+                if (!category || !action) {
+                    this.log("事件名称和事件动作不能为空");
+                    return;
+                }
 
+                var time = new Date().getTime();
+                var event = {};
+                //设置事件名称
+                event[this.columns.eventName] = this.keys.eventDurationEvent;
+                //设置自定义事件名称
+                event[this.columns.category] = category;
+                //设置自定义事件动作
+                event[this.columns.action] = action;
+                //判断map是否有值
+                if (map) {
+                    for (var k in map) {
+                        //只有在key和value都不为空的情况下，才能写入相关属性
+                        if (k && map[k]) {
+                            event[this.columns.kv + k] = map[k];
+                        }
+                    }
+                }
+                //判断duration是否有值，有值就设置持续时间
+                if (duration) {
+                    event[this.columns.duration] = duration;
+                }
+                //设置公用columns
+                this.setCommonColumns(event);
+                //最终发送编码后的数据
+                this.sendDataToServer(this.parseParam(event));
+                //更新最近操作时间
+                this.updatePreVisitTime(time);
+            }
         },
 
         /**
@@ -269,6 +350,13 @@
          * @returns {boolean}
          */
         preCallApi: function () {
+            if (this.isSessionTimeout()) {
+                //超时，需要进行新建会话
+                this.startSession();
+            } else {
+                //没超时，只需要更新前一次访问时间
+                this.updatePreVisitTime(new Date().getTime());
+            }
             return true;
         },
 
@@ -281,7 +369,7 @@
             var i2 = new Image(1, 1);
             //进行重试操作
             i2.onerror = function () {
-                
+
             }
             i2.src = this.clientConfig.serverUrl + "?" + data;
         },
@@ -318,25 +406,29 @@
          * @returns {string}
          */
         generateId: function () {
-            var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+            var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
             var tmpid = [];
             var r;
-            tmpid[8] = tmpid[13] = tmpid[18] = tmpid[23] = "-";
-            tmpid[14] = "4";
+            tmpid[8] = tmpid[13] = tmpid[18] = tmpid[23] = '-';
+            tmpid[14] = '4';
 
+            //var uuid = '';
             for (var i = 0; i < 36; i++) {
                 if (!tmpid[i]) {
                     r = 0 | Math.random() * 16;
                     tmpid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r];
                 }
+                //uuid += tmpid[i];
             }
-            return tmpid.join("");
+            return tmpid.join('');
+            //return uuid;
         },
 
         /**
          * 判断会话是否过期
          * 查看当前时间和最近访问时间时间间隔是否小于this.clientConfig.sessionTimeout
          * 如果小于，则返回false，否则返回true
+         * @returns {boolean}
          */
         isSessionTimeout: function () {
             var time = new Date().getTime();
@@ -347,12 +439,12 @@
                 // 存在，则进行区间判断
                 return time - preTime > this.clientConfig.sessionTimeout * 1000;
             }
-
             return true;
         },
 
         /**
          * 更新最近访问时间
+         * @param time
          */
         updatePreVisitTime: function (time) {
             CookieUtil.setExt(this.keys.preVisitTime, time);
@@ -383,28 +475,57 @@
             } else {
                 //如果存在，更新会话
             }
+        },
+
+        /**
+         * 打印日志
+         * @param msg
+         */
+        log: function (msg) {
+            console.log(msg);
         }
 
     };
 
     /**
-     * 对外的方法
+     * 对外暴露的方法名称
      * @type {{startSession: Window.__AE__.startSession}}
      * @private
      */
     window.__AE__ = {
-        /**
-         * 加载js触发的事件
-         */
+        
         startSession: function () {
             tracker.startSession();
+        },
+        onPageView: function () {
+            tracker.onPageView();
+        },
+        onChargeRequest: function (orderId, orderName, currencyAmount, currencyType, paymentType) {
+            tracker.onChargeRequest(orderId, orderName, currencyAmount, currencyType, paymentType);
+        },
+        onEventDuration: function (category, action, map, duration) {
+            tracker.onEventDuration(category, action, map, duration);
+        },
+        setMemberId: function (mid) {
+            tracker.setMemberId(mid);
         }
+
     }
 
     /**
-     * 加载
+     * 自动加载方法
      */
     var autoLoad = function () {
+        //进行参数设置
+        var _aelog_ = _aelog_ || window._aelog_ || [];
+        var memberId = null;
+        for(var i = 0; i < _aelog_.length; i++){
+            _aelog_[i][0] === "memberId" && (memberId = _aelog_[i][1]);
+        }
+
+        //根据给定的memberId，设置memberId的值
+        memberId && __AE__.setMemberId(memberId);
+        //启动session
         __AE__.startSession();
     };
 

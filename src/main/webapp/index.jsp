@@ -7,5 +7,11 @@
 </head>
 <body>
 启动成功
+<br>
+跳转到:
+<a href="demo01.jsp">demo01</a>
+<a href="demo02.jsp">demo02</a>
+<a href="demo03.jsp">demo03</a>
+<a href="demo04.jsp">demo04</a>
 </body>
 </html>
